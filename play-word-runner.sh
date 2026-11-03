@@ -2,4 +2,8 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-exec python3 "$script_dir/launcher.py" "$@"
+python_bin="$script_dir/.venv/bin/python"
+if [[ ! -x "$python_bin" ]]; then
+  python_bin="python3"
+fi
+exec "$python_bin" "$script_dir/desktop.py" "$@"
