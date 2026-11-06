@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import os
 import random
 import re
@@ -25,6 +26,8 @@ STATE_DIR = DATA_HOME / "word-runner-ielts"
 STATE_FILE = STATE_DIR / "state.json"
 CACHE_DIR = STATE_DIR / "audio"
 BASE_SECONDS = 15
+STAGE_COUNT = 20
+SAVE_VERSION = 2
 SPEEDS = (1.0, 1.15, 1.3, 1.5)
 REVIEW_DELAYS = (600, 86400, 259200, 604800, 1209600, 2592000)
 BOOKS = {"all": "Cả 4 quyển", "1": "Elementary", "2": "Pre-Intermediate", "3": "Upper-Intermediate", "4": "Advanced"}
@@ -44,7 +47,7 @@ def normalized(text: str) -> str:
 
 
 def word_key(word: dict) -> str:
-    return f"{word['book']}:{word['en'].strip().casefold()}"
+    return word.get("_key") or f"{word['book']}:{word['en'].strip().casefold()}"
 
 
 def read_json(path: Path, default):
@@ -153,6 +156,11 @@ class WordRunner:
             messagebox.showerror("Thiếu dữ liệu", f"Không đọc được {DATA_FILE}")
             root.destroy()
             return
+        key_counts = {}
+        for word in self.words:
+            base_key = word_key(word)
+            key_counts[base_key] = key_counts.get(base_key, 0) + 1
+            word["_key"] = base_key if key_counts[base_key] == 1 else f"{base_key}#{key_counts[base_key]}"
         self.by_key = {word_key(w): w for w in self.words if w.get("en") and w.get("vi")}
         self.state = read_json(STATE_FILE, {})
         self.learned = set(self.state.get("learned", []))
@@ -165,14 +173,20 @@ class WordRunner:
             self.book = "all"
         if self.mode not in MODES:
             self.mode = "copy"
-        self.stage = max(1, min(10, int(self.state.get("stage", 1))))
+        if self.state.get("save_version") == SAVE_VERSION:
+            self.stage = max(1, min(STAGE_COUNT, int(self.state.get("stage", 1))))
+        else:
+            pool_size = sum(1 for w in self.words if self.book == "all" or str(w["book"]) == self.book)
+            learned_count = sum(1 for w in self.words if (self.book == "all" or str(w["book"]) == self.book) and word_key(w) in self.learned)
+            self.stage = min(STAGE_COUNT, 1 + learned_count * STAGE_COUNT // max(1, pool_size))
         self.cycle = max(1, int(self.state.get("cycle", 1)))
         self.total = max(0, int(self.state.get("total", 0)))
         self.global_wave = max(0, int(self.state.get("global_wave", 0)))
         self.killed = max(0, int(self.state.get("killed", 0)))
         self.stage_goal = max(0, int(self.state.get("stage_goal", 0)))
         self.speed_index = max(0, min(len(SPEEDS) - 1, int(self.state.get("speed_index", 0))))
-        self.queue = [k for k in self.state.get("active", []) + self.state.get("queue", []) if k in self.by_key]
+        self.queue = ([k for k in self.state.get("active", []) + self.state.get("queue", []) if k in self.by_key]
+                      if self.state.get("save_version") == SAVE_VERSION else [])
         self.active: list[dict] = []
         self.target = None
         self.paused = bool(self.state.get("paused", False))
@@ -232,7 +246,7 @@ class WordRunner:
         self._button(top, "🏆 Hạng", self._show_rankings, "right")
 
         tk.Label(shell, text="Gõ từ. Bắn quái. Qua màn.", bg=BG, fg=TEXT, font=("DejaVu Sans", 22, "bold")).pack(pady=(10, 1))
-        tk.Label(shell, text="10 màn · khoảng 100 đợt · không game over", bg=BG, fg=MUTED, font=("DejaVu Sans", 11)).pack()
+        tk.Label(shell, text="20 màn mỗi quyển · số đợt tùy tiến độ · không game over", bg=BG, fg=MUTED, font=("DejaVu Sans", 11)).pack()
         hud = tk.Frame(shell, bg=BG)
         hud.pack(fill="x", pady=(12, 5))
         self.stage_label = self._chip(hud, "Màn 1/10")
@@ -317,7 +331,7 @@ class WordRunner:
     def _save(self):
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         state = {
-            "book": self.book, "mode": self.mode, "stage": self.stage, "cycle": self.cycle,
+            "save_version": SAVE_VERSION, "book": self.book, "mode": self.mode, "stage": self.stage, "cycle": self.cycle,
             "total": self.total, "global_wave": self.global_wave, "killed": self.killed,
             "stage_goal": self.stage_goal, "speed_index": self.speed_index,
             "queue": self.queue, "active": [e["key"] for e in self.active], "paused": self.paused,
@@ -339,9 +353,9 @@ class WordRunner:
         self.sound_button.configure(text="🔊 Âm thanh" if self.narrator.sound_on else "🔇 Âm thanh")
         self.entry.configure(state="disabled" if self.paused or self.transitioning else "normal")
         self.input_label.configure(text="GÕ TỪ TIẾNG ANH TRÊN QUÁI" if self.mode == "copy" else "NHỚ TỪ THEO NGHĨA VÀ PHIÊN ÂM")
-        self.stage_label.configure(text=f"Màn {self.stage}/10")
+        self.stage_label.configure(text=f"Màn {self.stage}/{STAGE_COUNT}")
         self.kill_label.configure(text=f"Hạ {self.killed}/{self.stage_goal}")
-        self.wave_label.configure(text=f"Đợt {self.global_wave} / ~100")
+        self.wave_label.configure(text=f"Đợt {self.global_wave}")
         self.total_label.configure(text=f"Tổng {self.total}")
         left = self._daily_left()
         self.daily_label.configure(text="Hôm nay: Học thêm" if self.overtime_key == self._day_key() else f"Hôm nay {left//60:02d}:{left%60:02d}")
@@ -388,7 +402,10 @@ class WordRunner:
             self._update_controls()
             self._save()
             return
-        self.stage_goal = min(15 + 5 * self.stage, len(candidates))
+        if self.mode == "review":
+            self.stage_goal = min(15 + 5 * self.stage, len(candidates))
+        else:
+            self.stage_goal = math.ceil(len(candidates) / (STAGE_COUNT - self.stage + 1))
         self.killed = 0
         self.queue = [word_key(w) for w in candidates[:self.stage_goal]]
         self._update_controls()
@@ -692,8 +709,6 @@ class WordRunner:
     def _victory(self):
         self._update_controls()
         self._save()
-        if self.stage == 10:
-            self._save_ranking(True)
         self.message.set(f"🏆 Hoàn thành màn {self.stage}!")
         dialog = tk.Toplevel(self.root)
         dialog.title("Chiến thắng")
@@ -710,7 +725,7 @@ class WordRunner:
             if self.victory_job:
                 self.root.after_cancel(self.victory_job)
             self.victory_job = None
-            if self.stage == 10:
+            if self.stage == STAGE_COUNT:
                 self.stage = 1
                 self.cycle += 1
                 self.total = 0
