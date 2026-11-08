@@ -204,7 +204,6 @@ class WordRunner:
         self.deadline = 0.0
         self.wave_duration = 0.0
         self.pending_job = None
-        self.victory_job = None
         self.last_tick = time.monotonic()
         self.last_save = self.last_tick
         self.last_controls_tick = 0.0
@@ -387,7 +386,7 @@ class WordRunner:
             self.available_label.configure(text=f"Đã học {count:,}/{len(pool):,} từ")
 
     def _clear_pending(self):
-        for name in ("pending_job", "victory_job"):
+        for name in ("pending_job",):
             job = getattr(self, name)
             if job:
                 try:
@@ -804,21 +803,20 @@ class WordRunner:
         self._update_controls()
         self._save()
         self.message.set(f"🏆 Hoàn thành màn {self.stage}!")
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Chiến thắng")
-        dialog.configure(bg=PANEL)
-        dialog.geometry("420x250")
-        dialog.transient(self.root)
-        tk.Label(dialog, text="🏆", bg=PANEL, fg=MINT, font=("DejaVu Sans", 52)).pack(pady=(10, 0))
-        tk.Label(dialog, text=f"Hoàn thành màn {self.stage}!", bg=PANEL, fg=TEXT, font=("DejaVu Sans", 18, "bold")).pack()
-        tk.Label(dialog, text=f"Đã hạ {self.killed} quái · tổng {self.total} từ", bg=PANEL, fg=MUTED).pack(pady=7)
+        overlay = tk.Frame(self.root, bg=PANEL, highlightbackground=MINT, highlightthickness=2)
+        overlay.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.54, relheight=0.42)
+        overlay.lift()
+        overlay.grab_set()
+        tk.Label(overlay, text="🏆", bg=PANEL, fg=MINT, font=("DejaVu Sans", 52)).pack(pady=(12, 0))
+        tk.Label(overlay, text=f"Hoàn thành màn {self.stage}!", bg=PANEL, fg=TEXT,
+                 font=("DejaVu Sans", 18, "bold")).pack()
+        tk.Label(overlay, text=f"Đã hạ {self.killed} quái · tổng {self.total} từ", bg=PANEL, fg=MUTED).pack(pady=7)
 
-        def advance():
-            if dialog.winfo_exists():
-                dialog.destroy()
-            if self.victory_job:
-                self.root.after_cancel(self.victory_job)
-            self.victory_job = None
+        def advance(_event=None):
+            self.root.unbind("<Return>", enter_binding)
+            self.root.unbind("<Escape>", escape_binding)
+            overlay.grab_release()
+            overlay.destroy()
             if self.stage == self._stage_count():
                 self.stage = 1
                 self.cycle += 1
@@ -827,10 +825,12 @@ class WordRunner:
             else:
                 self.stage += 1
             self._start_stage()
+            return "break"
 
-        self._button(dialog, "Màn tiếp theo →", advance, "left", coral=True)
-        dialog.protocol("WM_DELETE_WINDOW", advance)
-        self.victory_job = self.root.after(5000, advance)
+        button = self._button(overlay, "Màn tiếp theo ↵", advance, "bottom", coral=True)
+        button.focus_set()
+        enter_binding = self.root.bind("<Return>", advance, add="+")
+        escape_binding = self.root.bind("<Escape>", advance, add="+")
 
     def _book_complete(self):
         self.book_finished = True

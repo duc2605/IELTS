@@ -4,6 +4,8 @@
 
 Sau mỗi đợt, game dừng ở bảng ôn nhanh ngay trong cửa sổ chơi, với từ tiếng Anh, nghĩa tiếng Việt và nút 🔊 cho từng từ. Nhấn **Enter** hoặc bấm **Tiếp tục** để đóng bảng và bắt đầu đợt sau. Từ chưa gõ kịp có dấu ↻ và sẽ xuất hiện lại.
 
+Khi qua màn, bảng nâng cúp cũng hiện trong cửa sổ chơi. Nhấn **Enter** hoặc bấm **Màn tiếp theo** để tiếp tục.
+
 Mỗi màn là một bài học trong mục lục của quyển sách. Trong màn, từ ngắn xuất hiện trước, từ dài xuất hiện sau. Mỗi màn có tối đa 20 đợt; đợt cuối không giới hạn thời gian để bạn gõ nốt các từ còn lại mà không mất từ. Nhãn chủ đề và phân nhóm được tạo từ các PDF gốc bằng `build_topics.py` và lưu trong `data/topics.json`.
 
 Số màn hiện tại: Elementary **60**, Pre-Intermediate **100**, Upper-Intermediate **101**, Advanced **101**.
