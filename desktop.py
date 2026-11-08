@@ -188,6 +188,8 @@ class WordRunner:
         self.queue = ([k for k in self.state.get("active", []) + self.state.get("queue", []) if k in self.by_key]
                       if self.state.get("save_version") == SAVE_VERSION else [])
         self.active: list[dict] = []
+        self.wave_words: list[str] = []
+        self.wave_hits: set[str] = set()
         self.target = None
         self.paused = bool(self.state.get("paused", False))
         self.transitioning = False
@@ -421,6 +423,8 @@ class WordRunner:
         if not incoming:
             return
         self.active = [{"key": k, "word": self.by_key[k]} for k in incoming]
+        self.wave_words = list(incoming)
+        self.wave_hits = set()
         self.target = None
         self.global_wave += 1
         self.wave_duration = BASE_SECONDS / SPEEDS[self.speed_index]
@@ -450,8 +454,7 @@ class WordRunner:
                 self.target = None
                 self.answer_var.set("")
                 self.message.set(f"Hết giờ! {missed} từ quay lại ở đợt sau.")
-                self.pending_job = self.root.after(850, self._start_wave)
-                self._save()
+                self._review_wave(self._start_wave)
         if now - self.last_save > 5:
             self._save()
         if (self.mode == "review" and not self.active and not self.queue and not self.transitioning
@@ -557,6 +560,7 @@ class WordRunner:
         self.killed += 1
         self.total += 1
         key = word_key(word)
+        self.wave_hits.add(key)
         was_learned = key in self.learned
         self.learned.add(key)
         if self.mode == "review":
@@ -570,13 +574,53 @@ class WordRunner:
         self._update_controls()
         self._save()
         if self.mode != "review" and all(word_key(w) in self.learned for w in self._pool()):
-            self._book_complete()
+            self._review_wave(self._book_complete)
         elif self.killed >= self.stage_goal:
             self.active = []
-            self.transitioning = True
-            self._victory()
+            self._review_wave(self._victory)
         elif not self.active:
-            self.pending_job = self.root.after(650, self._start_wave)
+            self._review_wave(self._start_wave)
+
+    def _review_wave(self, next_action):
+        self._clear_pending()
+        self.transitioning = True
+        self.active = []
+        self.target = None
+        self.answer_var.set("")
+        self.message.set(f"Đợt {self.global_wave} đã kết thúc. Xem lại từ rồi tiếp tục.")
+        self._update_controls()
+        self._save()
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Ôn lại đợt {self.global_wave}")
+        dialog.configure(bg=PANEL)
+        dialog.geometry("560x500")
+        dialog.minsize(440, 350)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        tk.Label(dialog, text=f"Ôn lại từ · Đợt {self.global_wave}", bg=PANEL, fg=TEXT,
+                 font=("DejaVu Sans", 17, "bold")).pack(pady=(14, 5))
+        tk.Label(dialog, text="Bấm 🔊 để nghe tiếng Anh rồi tiếng Việt.", bg=PANEL,
+                 fg=MUTED, font=("DejaVu Sans", 10)).pack(pady=(0, 10))
+        for key in self.wave_words:
+            word = self.by_key[key]
+            row = tk.Frame(dialog, bg="#0b2744", padx=10, pady=7)
+            row.pack(fill="x", padx=16, pady=3)
+            status = "✓" if key in self.wave_hits else "↻"
+            tk.Label(row, text=f"{status}  {word['en']}", bg="#0b2744", fg=MINT if key in self.wave_hits else CORAL,
+                     anchor="w", font=("DejaVu Sans", 12, "bold")).pack(side="left")
+            self._button(row, "🔊", lambda w=word: self.narrator.speak_pair(w), "right")
+            tk.Label(row, text=word["vi"], bg="#0b2744", fg=TEXT, anchor="e",
+                     wraplength=220, font=("DejaVu Sans", 10)).pack(side="right", padx=8)
+
+        def continue_game():
+            dialog.grab_release()
+            dialog.destroy()
+            self.transitioning = False
+            next_action()
+
+        self._button(dialog, "Tiếp tục →", continue_game, "bottom", coral=True)
+        dialog.protocol("WM_DELETE_WINDOW", continue_game)
 
     def _pause(self, force=False, resume=False):
         if self.transitioning:
@@ -618,8 +662,7 @@ class WordRunner:
             return
         self.queue = [e["key"] for e in self.active] + self.queue
         self.active = []
-        self._clear_pending()
-        self._start_wave()
+        self._review_wave(self._start_wave)
 
     def _reset(self):
         if not messagebox.askyesno("Reset", "Bắt đầu lại từ màn 1? Từ đã học vẫn được ghi nhớ.", parent=self.root):

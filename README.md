@@ -2,6 +2,8 @@
 
 Ứng dụng cửa sổ riêng để học 10.630 mục từ từ bốn quyển *English Vocabulary in Use*. Tàu ở bên trái, quái ở bên phải; gõ đúng từ để bắn. Không có game over. Mỗi quyển có đúng 20 màn; tất cả mục từ chưa học được chia vào 20 màn đó. Số đợt thay đổi theo tốc độ gõ; từ chưa gõ kịp sẽ trở lại hàng chờ và màn chỉ kết thúc khi gõ đủ từ. Có ba phần học, ôn theo lịch, giới hạn học 30 phút mỗi ngày, xếp hạng, tạm dừng, tăng tốc và nghe lại Anh–Việt.
 
+Sau mỗi đợt, game dừng ở cửa sổ ôn nhanh với từ tiếng Anh, nghĩa tiếng Việt và nút 🔊 cho từng từ. Đóng cửa sổ hoặc bấm **Tiếp tục** để bắt đầu đợt sau. Từ chưa gõ kịp có dấu ↻ và sẽ xuất hiện lại.
+
 ## Ubuntu 22.04.5
 
 ```bash
