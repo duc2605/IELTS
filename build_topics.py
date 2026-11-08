@@ -1,9 +1,8 @@
-"""Build 20 ordered topic groups per book from the local Cambridge PDFs."""
+"""Build one stage per book unit from the local Cambridge PDFs."""
 
 from collections import Counter
 from pathlib import Path
 import json
-import math
 import re
 
 from pypdf import PdfReader
@@ -22,27 +21,16 @@ def groups(reader, book):
                for item in reader.outline if not isinstance(item, list)]
     if book < 4:
         units = [(title, page) for title, page in outline if re.match(r"^\d+\s", title)]
-        sections = []
-        for i in range(20):
-            first = i * len(units) // 20
-            last = (i + 1) * len(units) // 20
-            title = units[first][0].split(" ", 1)[1]
-            if last - first > 1:
-                title += " / " + units[last - 1][0].split(" ", 1)[1]
-            end = units[last][1] if last < len(units) else units[-1][1] + 2
-            sections.append((title, units[first][1], end))
-        return sections
-    sections = [(title.replace("\r", " ").strip(), page) for title, page in outline[6:20]]
-    weighted = []
-    for i, (title, page) in enumerate(sections):
-        end = sections[i + 1][1] if i + 1 < len(sections) else outline[20][1]
-        weighted.append((title, page, end))
-    while len(weighted) < 20:
-        i = max(range(len(weighted)), key=lambda j: weighted[j][2] - weighted[j][1])
-        title, start, end = weighted[i]
-        mid = (start + end) // 2
-        weighted[i:i + 1] = [(title, start, mid), (title, mid, end)]
-    return weighted
+        return [(title, page, units[i + 1][1] if i + 1 < len(units) else page + 2)
+                for i, (title, page) in enumerate(units)]
+    categories = [(title.replace("\r", " ").strip(), page) for title, page in outline[6:20]]
+    last_page = outline[20][1]
+    units = []
+    for number, page in enumerate(range(categories[0][1], last_page, 2), 1):
+        category = max((title for title, start in categories if start <= page),
+                       key=lambda title: next(start for name, start in categories if name == title))
+        units.append((f"{number} {category}", page, min(page + 2, last_page)))
+    return units
 
 
 def main():
@@ -50,21 +38,24 @@ def main():
     for book in range(1, 5):
         reader = PdfReader(next(BOOK_DIR.glob(f"{book}_*.pdf")))
         sections = groups(reader, book)
-        texts = []
-        for _, first, last in sections:
-            texts.append(" ".join(clean(reader.pages[p].extract_text() or "") for p in range(first, last)))
         entries = [w for w in WORDS if w["book"] == book]
-        assignments = []
-        for word in entries:
-            term = clean(word["en"])
-            expression = re.compile(r"(?<![a-z0-9])" + r"\s+".join(map(re.escape, term.split())) + r"(?![a-z0-9])") if term else None
-            counts = [len(expression.findall(text)) if expression else 0 for text in texts]
-            assignments.append(max(range(20), key=lambda i: counts[i]) if any(counts) else None)
+        terms = {clean(word["en"]) for word in entries}
+        lengths = {len(term.split()) for term in terms if term}
+        occurrences = {term: Counter() for term in terms}
+        for unit, (_, first, last) in enumerate(sections):
+            tokens = " ".join(clean(reader.pages[p].extract_text() or "") for p in range(first, last)).split()
+            for length in lengths:
+                for pos in range(len(tokens) - length + 1):
+                    term = " ".join(tokens[pos:pos + length])
+                    if term in occurrences:
+                        occurrences[term][unit] += 1
+        assignments = [occurrences[clean(word["en"])].most_common(1)[0][0]
+                       if occurrences[clean(word["en"])] else None for word in entries]
         # Terms absent from extracted PDF text go into the least populated topic.
         population = Counter(i for i in assignments if i is not None)
         for index, topic in enumerate(assignments):
             if topic is None:
-                chosen = min(range(20), key=lambda i: population[i])
+                chosen = min(range(len(sections)), key=lambda i: population[i])
                 assignments[index] = chosen
                 population[chosen] += 1
         result[str(book)] = {"titles": [x[0] for x in sections], "topics": assignments}

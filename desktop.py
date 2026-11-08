@@ -27,8 +27,7 @@ STATE_DIR = DATA_HOME / "word-runner-ielts"
 STATE_FILE = STATE_DIR / "state.json"
 CACHE_DIR = STATE_DIR / "audio"
 BASE_SECONDS = 15
-STAGE_COUNT = 20
-SAVE_VERSION = 3
+SAVE_VERSION = 4
 SPEEDS = (1.0, 1.15, 1.3, 1.5)
 REVIEW_DELAYS = (600, 86400, 259200, 604800, 1209600, 2592000)
 BOOKS = {"all": "Cả 4 quyển", "1": "Elementary", "2": "Pre-Intermediate", "3": "Upper-Intermediate", "4": "Advanced"}
@@ -182,7 +181,7 @@ class WordRunner:
         if self.mode not in MODES:
             self.mode = "copy"
         if self.state.get("save_version") == SAVE_VERSION:
-            self.stage = max(1, min(STAGE_COUNT, int(self.state.get("stage", 1))))
+            self.stage = max(1, min(self._stage_count(), int(self.state.get("stage", 1))))
         else:
             self.stage = 1
         self.cycle = max(1, int(self.state.get("cycle", 1)))
@@ -255,7 +254,7 @@ class WordRunner:
         self._button(top, "🏆 Hạng", self._show_rankings, "right")
 
         tk.Label(shell, text="Gõ từ. Bắn quái. Qua màn.", bg=BG, fg=TEXT, font=("DejaVu Sans", 22, "bold")).pack(pady=(10, 1))
-        self.topic_label = tk.Label(shell, text="20 màn theo chủ đề · từ ngắn trước · không game over", bg=BG, fg=MUTED, font=("DejaVu Sans", 11))
+        self.topic_label = tk.Label(shell, text="Mỗi bài học một màn · từ ngắn trước · không game over", bg=BG, fg=MUTED, font=("DejaVu Sans", 11))
         self.topic_label.pack()
         hud = tk.Frame(shell, bg=BG)
         hud.pack(fill="x", pady=(12, 5))
@@ -332,6 +331,11 @@ class WordRunner:
     def _pool(self) -> list[dict]:
         return [w for w in self.words if self.book == "all" or str(w["book"]) == self.book]
 
+    def _stage_count(self) -> int:
+        if self.book == "all":
+            return max(len(data.get("titles", [])) for data in self.topics.values())
+        return len(self.topics.get(self.book, {}).get("titles", [])) or 1
+
     def _day_key(self) -> str:
         return f"{datetime.now():%Y-%m-%d}:{self.book}"
 
@@ -364,8 +368,9 @@ class WordRunner:
         self.sound_button.configure(text="🔊 Âm thanh" if self.narrator.sound_on else "🔇 Âm thanh")
         self.entry.configure(state="disabled" if self.paused or self.transitioning else "normal")
         self.input_label.configure(text="GÕ TỪ TIẾNG ANH TRÊN QUÁI" if self.mode == "copy" else "NHỚ TỪ THEO NGHĨA VÀ PHIÊN ÂM")
-        self.stage_label.configure(text=f"Màn {self.stage}/{STAGE_COUNT}")
-        title = (self.topics.get(self.book, {}).get("titles", []) or ["Các chủ đề"] * STAGE_COUNT)[self.stage - 1]
+        self.stage_label.configure(text=f"Màn {self.stage}/{self._stage_count()}")
+        titles = self.topics.get(self.book, {}).get("titles", [])
+        title = titles[self.stage - 1] if self.stage <= len(titles) else "Các chủ đề"
         self.topic_label.configure(text=f"Chủ đề: {title} · từ ngắn trước · tối đa 20 đợt/màn")
         self.kill_label.configure(text=f"Hạ {self.killed}/{self.stage_goal}")
         self.wave_label.configure(text=f"Đợt {self.global_wave}")
@@ -415,7 +420,7 @@ class WordRunner:
             if self.mode == "review":
                 self.message.set("Chưa có từ đến lịch ôn. Hãy học ở Phần 1 hoặc 2 rồi quay lại.")
             else:
-                if self.stage < STAGE_COUNT:
+                if self.stage < self._stage_count():
                     self.stage += 1
                     self._start_stage()
                     return
@@ -814,7 +819,7 @@ class WordRunner:
             if self.victory_job:
                 self.root.after_cancel(self.victory_job)
             self.victory_job = None
-            if self.stage == STAGE_COUNT:
+            if self.stage == self._stage_count():
                 self.stage = 1
                 self.cycle += 1
                 self.total = 0

@@ -1,10 +1,12 @@
 # Word Runner IELTS · Desktop
 
-Ứng dụng cửa sổ riêng để học 10.630 mục từ từ bốn quyển *English Vocabulary in Use*. Tàu ở bên trái, quái ở bên phải; gõ đúng từ để bắn. Không có game over. Mỗi quyển có đúng 20 màn; tất cả mục từ chưa học được chia vào 20 màn đó. Số đợt thay đổi theo tốc độ gõ; từ chưa gõ kịp sẽ trở lại hàng chờ và màn chỉ kết thúc khi gõ đủ từ. Có ba phần học, ôn theo lịch, giới hạn học 30 phút mỗi ngày, xếp hạng, tạm dừng, tăng tốc và nghe lại Anh–Việt.
+Ứng dụng cửa sổ riêng để học 10.630 mục từ từ bốn quyển *English Vocabulary in Use*. Tàu ở bên trái, quái ở bên phải; gõ đúng từ để bắn. Không có game over. Mỗi bài học/chủ đề trong sách là một màn, nên số màn tùy từng quyển. Số đợt thay đổi theo tốc độ gõ; từ chưa gõ kịp sẽ trở lại hàng chờ và màn chỉ kết thúc khi gõ đủ từ. Có ba phần học, ôn theo lịch, giới hạn học 30 phút mỗi ngày, xếp hạng, tạm dừng, tăng tốc và nghe lại Anh–Việt.
 
 Sau mỗi đợt, game dừng ở bảng ôn nhanh ngay trong cửa sổ chơi, với từ tiếng Anh, nghĩa tiếng Việt và nút 🔊 cho từng từ. Nhấn **Enter** hoặc bấm **Tiếp tục** để đóng bảng và bắt đầu đợt sau. Từ chưa gõ kịp có dấu ↻ và sẽ xuất hiện lại.
 
-Mỗi màn là một nhóm bài học theo mục lục của quyển sách. Trong màn, từ ngắn xuất hiện trước, từ dài xuất hiện sau. Mỗi màn có tối đa 20 đợt; đợt cuối không giới hạn thời gian để bạn gõ nốt các từ còn lại mà không mất từ. Nhãn chủ đề và phân nhóm được tạo từ các PDF gốc bằng `build_topics.py` và lưu trong `data/topics.json`.
+Mỗi màn là một bài học trong mục lục của quyển sách. Trong màn, từ ngắn xuất hiện trước, từ dài xuất hiện sau. Mỗi màn có tối đa 20 đợt; đợt cuối không giới hạn thời gian để bạn gõ nốt các từ còn lại mà không mất từ. Nhãn chủ đề và phân nhóm được tạo từ các PDF gốc bằng `build_topics.py` và lưu trong `data/topics.json`.
+
+Số màn hiện tại: Elementary **60**, Pre-Intermediate **100**, Upper-Intermediate **101**, Advanced **101**.
 
 ## Ubuntu 22.04.5
 
