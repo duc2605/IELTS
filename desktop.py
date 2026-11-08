@@ -624,19 +624,29 @@ class WordRunner:
         self._update_controls()
         self._save()
 
-        dialog = tk.Toplevel(self.root)
-        dialog.title(f"Ôn lại đợt {self.global_wave}")
-        dialog.configure(bg=PANEL)
-        dialog.geometry("560x500")
-        dialog.minsize(440, 350)
-        dialog.transient(self.root)
-        dialog.grab_set()
-        tk.Label(dialog, text=f"Ôn lại từ · Đợt {self.global_wave}", bg=PANEL, fg=TEXT,
+        overlay = tk.Frame(self.root, bg=PANEL, highlightbackground=MINT, highlightthickness=2)
+        overlay.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.62, relheight=0.72)
+        overlay.lift()
+        overlay.grab_set()
+        tk.Label(overlay, text=f"Ôn lại từ · Đợt {self.global_wave}", bg=PANEL, fg=TEXT,
                  font=("DejaVu Sans", 17, "bold")).pack(pady=(14, 5))
-        tk.Label(dialog, text="Bấm 🔊 để nghe tiếng Anh rồi tiếng Việt.", bg=PANEL,
+        tk.Label(overlay, text="Bấm 🔊 để nghe tiếng Anh rồi tiếng Việt.", bg=PANEL,
                  fg=MUTED, font=("DejaVu Sans", 10)).pack(pady=(0, 10))
-        list_canvas = tk.Canvas(dialog, bg=PANEL, highlightthickness=0)
-        scrollbar = tk.Scrollbar(dialog, orient="vertical", command=list_canvas.yview)
+        def continue_game(_event=None):
+            self.root.unbind("<Return>", enter_binding)
+            self.root.unbind("<Escape>", escape_binding)
+            overlay.grab_release()
+            overlay.destroy()
+            self.transitioning = False
+            next_action()
+            return "break"
+
+        continue_button = self._button(overlay, "Tiếp tục ↵", continue_game, "bottom", coral=True)
+        continue_button.focus_set()
+        enter_binding = self.root.bind("<Return>", continue_game, add="+")
+        escape_binding = self.root.bind("<Escape>", continue_game, add="+")
+        list_canvas = tk.Canvas(overlay, bg=PANEL, highlightthickness=0)
+        scrollbar = tk.Scrollbar(overlay, orient="vertical", command=list_canvas.yview)
         rows = tk.Frame(list_canvas, bg=PANEL)
         rows.bind("<Configure>", lambda _event: list_canvas.configure(scrollregion=list_canvas.bbox("all")))
         list_canvas.create_window((0, 0), window=rows, anchor="nw")
@@ -654,14 +664,6 @@ class WordRunner:
             tk.Label(row, text=word["vi"], bg="#0b2744", fg=TEXT, anchor="e",
                      wraplength=220, font=("DejaVu Sans", 10)).pack(side="right", padx=8)
 
-        def continue_game():
-            dialog.grab_release()
-            dialog.destroy()
-            self.transitioning = False
-            next_action()
-
-        self._button(dialog, "Tiếp tục →", continue_game, "bottom", coral=True)
-        dialog.protocol("WM_DELETE_WINDOW", continue_game)
 
     def _pause(self, force=False, resume=False):
         if self.transitioning:
