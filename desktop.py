@@ -21,13 +21,14 @@ from tkinter import messagebox, ttk
 
 ROOT = Path(__file__).resolve().parent
 DATA_FILE = ROOT / "data" / "words.json"
+TOPICS_FILE = ROOT / "data" / "topics.json"
 DATA_HOME = Path(os.environ.get("XDG_DATA_HOME") or (os.environ.get("LOCALAPPDATA", str(Path.home())) if os.name == "nt" else Path.home() / ".local" / "share"))
 STATE_DIR = DATA_HOME / "word-runner-ielts"
 STATE_FILE = STATE_DIR / "state.json"
 CACHE_DIR = STATE_DIR / "audio"
 BASE_SECONDS = 15
 STAGE_COUNT = 20
-SAVE_VERSION = 2
+SAVE_VERSION = 3
 SPEEDS = (1.0, 1.15, 1.3, 1.5)
 REVIEW_DELAYS = (600, 86400, 259200, 604800, 1209600, 2592000)
 BOOKS = {"all": "Cả 4 quyển", "1": "Elementary", "2": "Pre-Intermediate", "3": "Upper-Intermediate", "4": "Advanced"}
@@ -152,15 +153,22 @@ class WordRunner:
         self.root.geometry("1080x760")
         self.root.minsize(900, 650)
         self.words = read_json(DATA_FILE, [])
+        self.topics = read_json(TOPICS_FILE, {})
         if not self.words:
             messagebox.showerror("Thiếu dữ liệu", f"Không đọc được {DATA_FILE}")
             root.destroy()
             return
         key_counts = {}
+        topic_positions = {book: 0 for book in ("1", "2", "3", "4")}
         for word in self.words:
             base_key = word_key(word)
             key_counts[base_key] = key_counts.get(base_key, 0) + 1
             word["_key"] = base_key if key_counts[base_key] == 1 else f"{base_key}#{key_counts[base_key]}"
+            book = str(word["book"])
+            topics = self.topics.get(book, {}).get("topics", [])
+            position = topic_positions[book]
+            word["_topic"] = topics[position] + 1 if position < len(topics) else 1
+            topic_positions[book] += 1
         self.by_key = {word_key(w): w for w in self.words if w.get("en") and w.get("vi")}
         self.state = read_json(STATE_FILE, {})
         self.learned = set(self.state.get("learned", []))
@@ -176,9 +184,7 @@ class WordRunner:
         if self.state.get("save_version") == SAVE_VERSION:
             self.stage = max(1, min(STAGE_COUNT, int(self.state.get("stage", 1))))
         else:
-            pool_size = sum(1 for w in self.words if self.book == "all" or str(w["book"]) == self.book)
-            learned_count = sum(1 for w in self.words if (self.book == "all" or str(w["book"]) == self.book) and word_key(w) in self.learned)
-            self.stage = min(STAGE_COUNT, 1 + learned_count * STAGE_COUNT // max(1, pool_size))
+            self.stage = 1
         self.cycle = max(1, int(self.state.get("cycle", 1)))
         self.total = max(0, int(self.state.get("total", 0)))
         self.global_wave = max(0, int(self.state.get("global_wave", 0)))
@@ -190,6 +196,7 @@ class WordRunner:
         self.active: list[dict] = []
         self.wave_words: list[str] = []
         self.wave_hits: set[str] = set()
+        self.stage_wave = max(0, int(self.state.get("stage_wave", 0))) if self.state.get("save_version") == SAVE_VERSION else 0
         self.target = None
         self.paused = bool(self.state.get("paused", False))
         self.transitioning = False
@@ -248,7 +255,8 @@ class WordRunner:
         self._button(top, "🏆 Hạng", self._show_rankings, "right")
 
         tk.Label(shell, text="Gõ từ. Bắn quái. Qua màn.", bg=BG, fg=TEXT, font=("DejaVu Sans", 22, "bold")).pack(pady=(10, 1))
-        tk.Label(shell, text="20 màn mỗi quyển · số đợt tùy tiến độ · không game over", bg=BG, fg=MUTED, font=("DejaVu Sans", 11)).pack()
+        self.topic_label = tk.Label(shell, text="20 màn theo chủ đề · từ ngắn trước · không game over", bg=BG, fg=MUTED, font=("DejaVu Sans", 11))
+        self.topic_label.pack()
         hud = tk.Frame(shell, bg=BG)
         hud.pack(fill="x", pady=(12, 5))
         self.stage_label = self._chip(hud, "Màn 1/10")
@@ -334,6 +342,7 @@ class WordRunner:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         state = {
             "save_version": SAVE_VERSION, "book": self.book, "mode": self.mode, "stage": self.stage, "cycle": self.cycle,
+            "stage_wave": self.stage_wave,
             "total": self.total, "global_wave": self.global_wave, "killed": self.killed,
             "stage_goal": self.stage_goal, "speed_index": self.speed_index,
             "queue": self.queue, "active": [e["key"] for e in self.active], "paused": self.paused,
@@ -356,6 +365,8 @@ class WordRunner:
         self.entry.configure(state="disabled" if self.paused or self.transitioning else "normal")
         self.input_label.configure(text="GÕ TỪ TIẾNG ANH TRÊN QUÁI" if self.mode == "copy" else "NHỚ TỪ THEO NGHĨA VÀ PHIÊN ÂM")
         self.stage_label.configure(text=f"Màn {self.stage}/{STAGE_COUNT}")
+        title = (self.topics.get(self.book, {}).get("titles", []) or ["Các chủ đề"] * STAGE_COUNT)[self.stage - 1]
+        self.topic_label.configure(text=f"Chủ đề: {title} · từ ngắn trước · tối đa 20 đợt/màn")
         self.kill_label.configure(text=f"Hạ {self.killed}/{self.stage_goal}")
         self.wave_label.configure(text=f"Đợt {self.global_wave}")
         self.total_label.configure(text=f"Tổng {self.total}")
@@ -383,6 +394,7 @@ class WordRunner:
     def _start_stage(self):
         self._clear_pending()
         self.active = []
+        self.stage_wave = 0
         self.target = None
         self.transitioning = False
         self.paused = False
@@ -391,7 +403,11 @@ class WordRunner:
         now = time.time()
         candidates = [w for w in pool if (self.reviews.get(word_key(w), {}).get("due", float("inf")) <= now)
                       if self.mode == "review"] if self.mode == "review" else [w for w in pool if word_key(w) not in self.learned]
-        random.shuffle(candidates)
+        if self.mode != "review":
+            candidates = [w for w in candidates if w["_topic"] == self.stage]
+            candidates.sort(key=lambda w: (len(normalized(w["en"])), normalized(w["en"])))
+        else:
+            random.shuffle(candidates)
         if not candidates:
             self.stage_goal = 0
             self.killed = 0
@@ -399,6 +415,10 @@ class WordRunner:
             if self.mode == "review":
                 self.message.set("Chưa có từ đến lịch ôn. Hãy học ở Phần 1 hoặc 2 rồi quay lại.")
             else:
+                if self.stage < STAGE_COUNT:
+                    self.stage += 1
+                    self._start_stage()
+                    return
                 self.book_finished = True
                 self._book_complete()
             self._update_controls()
@@ -407,7 +427,7 @@ class WordRunner:
         if self.mode == "review":
             self.stage_goal = min(15 + 5 * self.stage, len(candidates))
         else:
-            self.stage_goal = math.ceil(len(candidates) / (STAGE_COUNT - self.stage + 1))
+            self.stage_goal = len(candidates)
         self.killed = 0
         self.queue = [word_key(w) for w in candidates[:self.stage_goal]]
         self._update_controls()
@@ -417,7 +437,7 @@ class WordRunner:
         self.pending_job = None
         if self.paused or self.transitioning:
             return
-        size = min(2 + (self.stage - 1) // 2, 6)
+        size = min(max(2, math.ceil(self.stage_goal / 20)), 12)
         incoming = self.queue[:size]
         self.queue = self.queue[size:]
         if not incoming:
@@ -427,6 +447,7 @@ class WordRunner:
         self.wave_hits = set()
         self.target = None
         self.global_wave += 1
+        self.stage_wave += 1
         self.wave_duration = BASE_SECONDS / SPEEDS[self.speed_index]
         self.deadline = time.monotonic() + self.wave_duration
         self.answer_var.set("")
@@ -447,7 +468,7 @@ class WordRunner:
                 if messagebox.askyesno("Đủ 30 phút hôm nay", "Tiến độ đã được lưu. Bạn muốn học thêm không?", parent=self.root):
                     self.overtime_key = key
                     self._pause(force=True, resume=True)
-            if not self.paused and now >= self.deadline:
+            if not self.paused and self.stage_wave < 20 and now >= self.deadline:
                 missed = len(self.active)
                 self.queue = [e["key"] for e in self.active] + self.queue
                 self.active = []
@@ -510,7 +531,7 @@ class WordRunner:
                                font=("DejaVu Sans", 13 if len(main) < 20 else 11, "bold"))
             canvas.create_text(x, y + 23, text=sub, width=width - 12, fill=MUTED,
                                font=("DejaVu Sans", 9))
-        self.timer_label.configure(text=f"{int(left + 0.99)}s" if self.active else "—")
+        self.timer_label.configure(text=("∞" if self.stage_wave >= 20 else f"{int(left + 0.99)}s") if self.active else "—")
 
     def _click_enemy(self, event):
         for enemy in self.active:
@@ -579,7 +600,19 @@ class WordRunner:
             self.active = []
             self._review_wave(self._victory)
         elif not self.active:
-            self._review_wave(self._start_wave)
+            if self.stage_wave >= 20 and self.queue:
+                self._refill_final_wave()
+            else:
+                self._review_wave(self._start_wave)
+
+    def _refill_final_wave(self):
+        incoming = self.queue[:12]
+        self.queue = self.queue[12:]
+        self.wave_words.extend(incoming)
+        self.active = [{"key": key, "word": self.by_key[key]} for key in incoming]
+        self.target = None
+        self.answer_var.set("")
+        self._save()
 
     def _review_wave(self, next_action):
         self._clear_pending()
@@ -602,9 +635,17 @@ class WordRunner:
                  font=("DejaVu Sans", 17, "bold")).pack(pady=(14, 5))
         tk.Label(dialog, text="Bấm 🔊 để nghe tiếng Anh rồi tiếng Việt.", bg=PANEL,
                  fg=MUTED, font=("DejaVu Sans", 10)).pack(pady=(0, 10))
+        list_canvas = tk.Canvas(dialog, bg=PANEL, highlightthickness=0)
+        scrollbar = tk.Scrollbar(dialog, orient="vertical", command=list_canvas.yview)
+        rows = tk.Frame(list_canvas, bg=PANEL)
+        rows.bind("<Configure>", lambda _event: list_canvas.configure(scrollregion=list_canvas.bbox("all")))
+        list_canvas.create_window((0, 0), window=rows, anchor="nw")
+        list_canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        list_canvas.pack(fill="both", expand=True)
         for key in self.wave_words:
             word = self.by_key[key]
-            row = tk.Frame(dialog, bg="#0b2744", padx=10, pady=7)
+            row = tk.Frame(rows, bg="#0b2744", padx=10, pady=7)
             row.pack(fill="x", padx=16, pady=3)
             status = "✓" if key in self.wave_hits else "↻"
             tk.Label(row, text=f"{status}  {word['en']}", bg="#0b2744", fg=MINT if key in self.wave_hits else CORAL,
@@ -659,6 +700,9 @@ class WordRunner:
 
     def _next_wave(self):
         if self.paused or self.transitioning:
+            return
+        if self.stage_wave >= 20:
+            self.message.set("Đợt cuối không giới hạn thời gian. Gõ hết từ còn lại để qua màn.")
             return
         self.queue = [e["key"] for e in self.active] + self.queue
         self.active = []

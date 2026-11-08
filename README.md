@@ -4,6 +4,8 @@
 
 Sau mỗi đợt, game dừng ở cửa sổ ôn nhanh với từ tiếng Anh, nghĩa tiếng Việt và nút 🔊 cho từng từ. Đóng cửa sổ hoặc bấm **Tiếp tục** để bắt đầu đợt sau. Từ chưa gõ kịp có dấu ↻ và sẽ xuất hiện lại.
 
+Mỗi màn là một nhóm bài học theo mục lục của quyển sách. Trong màn, từ ngắn xuất hiện trước, từ dài xuất hiện sau. Mỗi màn có tối đa 20 đợt; đợt cuối không giới hạn thời gian để bạn gõ nốt các từ còn lại mà không mất từ. Nhãn chủ đề và phân nhóm được tạo từ các PDF gốc bằng `build_topics.py` và lưu trong `data/topics.json`.
+
 ## Ubuntu 22.04.5
 
 ```bash
@@ -20,7 +22,7 @@ python3 -m venv .venv
 
 Tiến độ được lưu tự động tại `~/.local/share/word-runner-ielts/state.json`. Bộ nhớ đệm âm thanh nằm cùng thư mục. Dùng **🇻🇳 Việt: Bật/Tắt** để bỏ phần đọc nghĩa tiếng Việt; **🔊 Âm thanh** tắt toàn bộ âm thanh.
 
-Khi cập nhật từ bản 10 màn, danh sách từ đã học được giữ nguyên. Màn hiện tại được tính lại theo tỷ lệ từ đã học trong quyển; vì vậy số màn hiển thị có thể thay đổi sau lần mở đầu tiên.
+Khi cập nhật từ bản chia màn theo số lượng từ sang bản chia theo chủ đề, danh sách từ đã học được giữ nguyên và game bắt đầu rà lại từ chủ đề đầu tiên để không bỏ sót từ chưa học. Chủ đề đã học hết sẽ được tự động bỏ qua.
 
 ## Windows
 
