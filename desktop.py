@@ -133,9 +133,7 @@ class Narrator:
 
     def _windows_speak(self, text: str, language: str, generation: int):
         # System.Speech works with the voices already installed on Windows.
-        voice = "Microsoft An" if language == "vi" else (
-            "Microsoft Zira Desktop" if self.voice_region == "en-US" else "Microsoft David Desktop"
-        )
+        voice = "Microsoft An" if language == "vi" else "Microsoft Zira Desktop"
         safe_text = text.replace("'", "''")
         safe_voice = voice.replace("'", "''")
         script = (
