@@ -279,7 +279,7 @@ class WordRunner:
         self.topic_label.pack()
         hud = tk.Frame(shell, bg=BG)
         hud.pack(fill="x", pady=(12, 5))
-        self.stage_label = self._chip(hud, "Màn 1/10")
+        self.stage_label = self._chip(hud, f"Màn {self.stage}/{self._stage_count()}")
         self.kill_label = self._chip(hud, "Hạ 0/20")
         self.wave_label = self._chip(hud, "Đợt 1")
         self.total_label = self._chip(hud, "Tổng 0", "right")
@@ -354,7 +354,7 @@ class WordRunner:
 
     def _stage_count(self) -> int:
         if self.book == "all":
-            return max(len(data.get("titles", [])) for data in self.topics.values())
+            return max((len(data.get("titles", [])) for data in self.topics.values()), default=1)
         return len(self.topics.get(self.book, {}).get("titles", [])) or 1
 
     def _day_key(self) -> str:
