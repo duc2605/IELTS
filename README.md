@@ -30,7 +30,7 @@ Khi cập nhật từ bản chia màn theo số lượng từ sang bản chia th
 
 ## Windows
 
-Máy cần Python 3 có Tkinter. Cài `edge-tts` và `ffmpeg` nếu muốn giọng tự nhiên, rồi chạy `python desktop.py`.
+Máy cần Python 3 có Tkinter. Chạy `python desktop.py` hoặc `play-word-runner.cmd`. Ứng dụng tự dùng giọng hệ thống Windows để đọc tiếng Anh và tiếng Việt khi chưa cài `edge-tts`; không cần cài thêm gói nào để có tiếng. Muốn dùng giọng tự nhiên, cài `edge-tts` và `ffmpeg` rồi mở lại game.
 
 ## Mã nguồn
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import math
@@ -123,10 +124,31 @@ class Narrator:
             except Exception:
                 self.status = "Giọng trực tuyến không khả dụng; dùng giọng hệ thống."
         system = shutil.which("spd-say")
-        if system:
+        if os.name == "nt":
+            self._windows_speak(text, language, generation)
+        elif system:
             self._play([system, "-w", "-l", "en" if language == "en" else "vi", text], generation)
         else:
             self.status = "Cài edge-tts và ffmpeg để bật phát âm."
+
+    def _windows_speak(self, text: str, language: str, generation: int):
+        # System.Speech works with the voices already installed on Windows.
+        voice = "Microsoft An" if language == "vi" else (
+            "Microsoft Zira Desktop" if self.voice_region == "en-US" else "Microsoft David Desktop"
+        )
+        safe_text = text.replace("'", "''")
+        safe_voice = voice.replace("'", "''")
+        script = (
+            "Add-Type -AssemblyName System.Speech; "
+            "$speaker = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            f"try {{ $speaker.SelectVoice('{safe_voice}') }} catch {{ }}; "
+            "$speaker.Rate = -1; "
+            f"$speaker.Speak('{safe_text}'); "
+            "$speaker.Dispose()"
+        )
+        encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+        self.status = "Đang dùng giọng hệ thống Windows."
+        self._play(["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], generation)
 
     def _play(self, command: list[str], generation: int):
         try:
